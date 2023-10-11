@@ -1,0 +1,1 @@
+A fusion of the Cluster and WooCommerce packages. Ideal for eCommerce businesses that need to serve hundreds or thousands of concurrent users and handle any load spike. With WooCommerce Cluster you can run campaigns without worrying about downtime or slow performance damaging your reputation and brand.

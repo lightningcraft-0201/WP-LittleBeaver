@@ -1,0 +1,1 @@
+Same as the Standalone package, but using the commercial edition of the LiteSpeed Web Server instead of NGINX. Also includes seamless integration with the LiteSpeed WordPress Plugin for better quality, resource utilization and performance. 

@@ -1,0 +1,250 @@
+jpsType: install
+jpsVersion: '1.7.2'
+id: wordpress
+name: WordPress Standalone Kit
+categories:
+  - apps/blogs
+  - apps/content-management
+logo: https://raw.githubusercontent.com/jelastic-jps/wordpress/master/images/wp-standalone.png
+homepage: http://wordpress.org/
+description:
+  text: WordPress Standalone with built-in kit for choosing optimal application servers and a set of advanced features for running websites and blogs. WordPress CMS deployed as a lightweight standalone container with minimal allocated resources for cost efficiency.
+  short: WordPress Standalone with built-in kit for choosing optimal application servers and a set of advanced features for running websites and blogs
+
+baseUrl: https://raw.githubusercontent.com/jelastic-jps/wordpress/v2.2.0
+
+onBeforeInit: /scripts/beforeInit.js?_r=${fn.random}
+onBeforeInstall: /scripts/beforeInstall.js?_r=${fn.random}
+nodes: definedInOnBeforeInstall
+
+skipNodeEmails: true
+
+settings:
+  fields:  
+    - caption: Advanced Features
+      type: displayfield
+      name: displayfield
+      markup:
+ 
+    - caption: Install LiteSpeed High-Performance Web Server
+      type: checkbox
+      name: ls-addon
+      value: true
+      disabled: false
+      tooltip: "If this option is disabled, the cluster will be installed using NGINX load balancer and application servers"
+      showIf:
+        true:
+          - caption: WordPress Brute Force Attack Protection
+            type: checkbox
+            name: wp_protect
+            value: true
+            disabled: false
+            tooltip: "Secure WordPress Admin Panel with <a href='https://www.litespeedtech.com/support/wiki/doku.php/litespeed_wiki:config:wordpress-protection' target='_blank'>LiteSpeed Brute Force Protection</a> that limits failed login attempts. Default action is <b>Throttle</b> and number of allowed attempts is <b>100</b>"
+
+          - caption: Web Application Firewall
+            type: checkbox
+            name: waf
+            value: true
+            disabled: false
+            tooltip: "Protect web sites with <a href='https://www.litespeedtech.com/support/wiki/doku.php/litespeed_wiki:waf' target='_blank'>LiteSpeed built-in WAF</a> based on Free ModSecurity Rules from Comodo"
+
+        false:
+          - caption: WordPress Brute Force Attack Protection
+            type: checkbox
+            name: wp_protect
+            value: false
+            disabled: true
+            tooltip: "Secure WordPress Admin Panel with <a href='https://www.litespeedtech.com/support/wiki/doku.php/litespeed_wiki:config:wordpress-protection' target='_blank'>LiteSpeed Brute Force Protection</a> that limits failed login attempts. Default action is <b>Throttle</b> and number of allowed attempts is <b>100</b>"
+        
+          - caption: Web Application Firewall
+            type: checkbox
+            name: waf
+            value: false
+            disabled: true
+            tooltip: "Protect web sites with <a href='https://www.litespeedtech.com/support/wiki/doku.php/litespeed_wiki:waf' target='_blank'>LiteSpeed built-in WAF</a> based on Free ModSecurity Rules from Comodo"
+             
+    - caption: Install Let's Encrypt SSL with Auto-Renewal
+      type: checkbox
+      name: le-addon
+      value: true
+      disabled: false
+      tooltip: "Advanced integration with Let's Encrypt certificate authority that simplifies and automates the process of issuing, configuring and updating trusted custom SSL certificates."
+
+    - caption: Install Lightning-Fast Premium CDN
+      type: checkbox
+      name: cdn-addon
+      value: true
+      disabled: false
+      tooltip: "Jelastic CDN is an HTTP/3 premium content delivery network of 160+ Super PoPs (points of presence) with bandwidth capacity up to 115 Tbps, advanced caching and acceleration strategies based on best-in-class IP Anycast technology."
+
+    - caption: Install WordPress Multisite Network
+      type: checkbox
+      name: mu-addon
+      value: false
+      disabled: false
+      tooltip: "Multisite is a type of WordPress installation that allows you to create and manage a network of multiple websites from a single WordPress dashboard. This lets you easily make changes and keep all of your websites updated from one place."
+
+    - caption: Install WooCommerce
+      type: checkbox
+      name: woocommerce
+      value: false
+      disabled: false
+      tooltip: "WooCommerce is a free open-source e-commerce plugin designed specifically for WordPress. This is a great platform for a store of any size."
+
+    - type: displayfield
+      hideLabel: true
+      hidden: true
+      name: bl_count   
+      markup:
+
+mixins:
+ - https://raw.githubusercontent.com/jelastic-jps/wordpress/master/configs/vers.yaml
+
+globals:
+  isSingleDeploy: ${settings.isSingleDeploy:true}
+  WP_CLUSTER_PATH: https://raw.githubusercontent.com/jelastic-jps/wordpress-cluster/v2.2.0
+  DB_USER: ${settings.DB_USER:user-[fn.random]}
+  DB_PASS: ${settings.DB_PASS:[fn.password(10)]}
+  DB_HOST: 127.0.0.1
+  PROTOCOL: http
+  WP_ADMIN_PASS: ${settings.WP_ADMIN_PASS:[fn.password(10)]}
+  SUCCESS: default
+
+onInstall:
+
+  - limits
+  - initLEsettings  
+  - setupNode:
+      nodeId: cp
+  - if (${globals.isSingleDeploy}):
+    - setProtocol
+    - setDomain            
+    - createUserDB
+    - installWordpress 
+    - if (${settings.mu-addon:false}): installMultisite    
+    - if (${settings.le-addon:false}): 
+      - installLEaddon
+      - setupLEdomain
+    - if (${settings.cdn-addon:false}):
+      - installCDN
+      - setupCDN
+    - if (${settings.woocommerce:false}): installWoocommerce
+    - install: 
+      - jps: /scripts/events.jps?_r=${fn.random}
+      - jps: ${globals.WP_CLUSTER_PATH}/scripts/addons.jps?_r=${fn.random}
+    - if ('${settings.success_email}' != 'false'):
+      - return:
+          type: success
+          message: /success/text/success-${globals.SUCCESS}.md?_r=${fn.random}
+          email: /success/email/success-${nodes.cp.master.nodeType}-${globals.SUCCESS}.md?_r=${fn.random}
+
+actions:
+
+  limits:
+    - env.control.ApplyNodeGroupData[cp]:
+        data:
+          project: ${settings.project:default}
+          projectScope: ${settings.projectScope:production}
+          validation : 
+            maxCount: 1
+            
+  setProtocol:
+    - script: |
+        return {
+          result:0,
+          ssl: jelastic.billing.account.GetQuotas('environment.jelasticssl.enabled').array[0].value
+        }
+    - if (${response.ssl} || ${settings.le-addon:false}):
+        setGlobals:
+          PROTOCOL: https
+
+  setDomain:
+    - script: ${globals.WP_CLUSTER_PATH}/scripts/idna.js
+      domains: ${env.domain}
+    - setGlobals:
+        DOMAIN: ${response.domains} 
+
+  installLEaddon:
+    - install: https://github.com/jelastic-jps/lets-encrypt/blob/master/manifest.jps?_r=${fn.random}
+      nodeGroup: cp
+      skipEmail: true
+      settings:
+        test: false
+        fallbackToX1: true
+        withExtIp: ${globals.isExtIP}
+
+  initLEsettings:
+    - script: |
+        return {
+          result:0,
+          extIP: Boolean(jelastic.billing.account.GetQuotas('environment.externalip.enabled').array[0].value)
+        }
+    - setGlobals:
+        isExtIP: ${response.extIP}
+
+    - cmd[cp]: |-
+        [ ! -d /var/lib/jelastic/keys/letsencrypt ] && mkdir -p /var/lib/jelastic/keys/letsencrypt;
+        echo "webroot=true" > /var/lib/jelastic/keys/letsencrypt/settings-custom;
+        echo "webrootPath=/var/www/webroot/ROOT" >> /var/lib/jelastic/keys/letsencrypt/settings-custom;
+        echo "test=false" >> /var/lib/jelastic/keys/letsencrypt/settings-custom;
+        echo "withExtIp=${globals.isExtIP}" >> /var/lib/jelastic/keys/letsencrypt/settings-custom;
+      user: root
+
+  setupLEdomain:
+    - cmd[cp]: |-
+        source /opt/letsencrypt/settings;
+        bash ~/bin/setupWP.sh --url https://${domain};
+
+  installCDN:
+    - install: https://raw.githubusercontent.com/edgeport/cdn/master/manifest.yml?_r=${fn.random}
+      nodeGroup: cp
+      skipEmail: true
+      settings:
+        note: ${settings.noteCDN:}
+  
+  setupCDN:
+    - script: return jelastic.dev.scripting.Eval("c05ffa5b45628a2a0c95467ebca8a0b4", session, "cdn.info", {partnerCode:1})
+    - setGlobals:
+        CDN_URL: ${globals.PROTOCOL}://${env.envName}-${response.response.partnerCode}.cdn.jelastic.net/
+        CDN: ${env.envName}-${response.response.partnerCode}.cdn.jelastic.net
+        SUCCESS: cdn
+    - install: ${globals.WP_CLUSTER_PATH}/scripts/setupCDN.jps
+  
+  installMultisite:
+    - install: ${globals.WP_CLUSTER_PATH}/addons/multisite.jps
+
+  installWordpress:
+    - install: ${globals.WP_CLUSTER_PATH}/scripts/installWP.jps
+      settings:
+        db_host: ${globals.DB_HOST}
+        db_user: ${globals.DB_USER}
+        db_pass: ${globals.DB_PASS}
+        redis_host: /var/run/redis/redis.sock
+        redis_port: 0
+        wp_admin_pass: ${globals.WP_ADMIN_PASS}
+        wp_title: "Hello World"
+        wp_url: ${globals.PROTOCOL}://${globals.DOMAIN}/
+        cluster: false
+
+  setupNode:
+    - log: OPTIMIZATION
+    - install: https://raw.githubusercontent.com/jelastic/templates/master/config_v2.jps?_r=${fn.random}
+      settings:
+        targetGroup: cp
+        targetNodes: ${this.nodeId}
+        optimization: wordpress
+        
+  createUserDB:
+    - log: Create user for DataBase
+    - cmd [cp]: |-
+        wget ${baseUrl}/configs/sqldb/wordpress.cnf -O /etc/mysql/conf.d/wordpress.cnf &>> /var/log/run.log;
+        wget https://raw.githubusercontent.com/jelastic-jps/mysql-cluster/master/scripts/setupUser.sh -O ~/setupUser.sh &>> /var/log/run.log;
+        bash ~/setupUser.sh ${globals.DB_USER} ${globals.DB_PASS} &>> /var/log/run.log;
+        jem passwd set -p ${globals.DB_PASS} &>> /var/log/run.log;
+      user: root
+      
+  installWoocommerce:
+    cmd[${nodes.cp.master.id}]: |-
+      wp plugin install woocommerce --version=${globals.version_woocommerce} --activate --path=${SERVER_WEBROOT} &>> /var/log/run.log;
+
+startPage: ${env.url}

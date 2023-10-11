@@ -1,0 +1,1 @@
+A fusion of the Standalone Pro and the WooCommerce packages. Designed for smaller e-commerce businesses, but delivering better page load times and a better user experience, via the seamless integration of WooCommerce and LiteSpeed.

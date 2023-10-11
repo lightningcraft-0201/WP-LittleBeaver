@@ -1,0 +1,124 @@
+type: install
+jpsVersion: 7.1.1
+id: wp-edition-woocommerce
+categories:
+  - wordpress
+targetEditions: wordpress
+name: WooCommerce
+baseUrl: https://raw.githubusercontent.com/jelastic-jps/wordpress/master/wordpress-edition
+logo: /images/logo/woocommerce.svg
+description:
+  text: /text/woocommerce.md    
+  short: Single instance WooCommerce powered by NGINX
+
+onBeforeInit: /scripts/onBeforeInit.js
+
+settings:
+  fields:
+  - caption: Advanced Features
+    type: displayfield
+    name: displayfield
+    markup:
+
+  - caption: Install Let's Encrypt SSL with Auto-Renewal
+    type: checkbox
+    name: le-addon
+    value: true
+    disabled: false
+    tooltip: "Advanced integration with Let's Encrypt certificate authority that simplifies and automates the process of issuing, configuring and updating trusted custom SSL certificates."
+
+  - caption: Install Lightning-Fast Premium CDN
+    type: checkbox
+    name: cdn-addon
+    value: true
+    disabled: false
+    tooltip: "Jelastic CDN is an HTTP/3 premium content delivery network of 160+ Super PoPs (points of presence) with bandwidth capacity up to 115 Tbps, advanced caching and acceleration strategies based on best-in-class IP Anycast technology."
+
+  - type: displayfield
+    hideLabel: true
+    hidden: true
+    name: bl_count   
+    markup:
+    
+  - type: separator
+  
+  - caption: Topology
+    type: displayfield
+    name: topology
+    tooltip: "<h2 align=center>Single instance WooCommerce<br>powered by NGINX</h2><br><img width='214' height='320' src='https://raw.githubusercontent.com/jelastic-jps/wordpress/master/wordpress-edition/images/topo/standalone.svg?sanitize=true'><br>"
+
+  - type: envname
+    name: envName
+    caption: Environment
+    dependsOn: region
+    required: true
+
+  - type: string
+    name: displayName
+    caption: Display Name
+    default: WooCommerce
+
+  - caption: Region
+    type: regionlist
+    name: region
+    disableInactive: true
+    selectFirstAvailable: true
+    stateId: "wp"
+   
+  - type: owner
+    name: ownerUid
+    caption: Owner
+
+globals:
+  wp_jps: https://raw.githubusercontent.com/jelastic-jps/wordpress/v2.2.0
+  wp_admin_pass: ${fn.password(10)}
+  db_user: user-${fn.random}
+  db_pass: ${fn.password(10)}
+
+onInstall:
+  - script: |
+        var envGroups = eval('(' + MANIFEST + ')').envGroups,
+            onAfterReturn = { setGlobals: {} }, 
+            glbs = onAfterReturn.setGlobals,
+            resp;
+        resp = jelastic.env.control.GetRegions(appid, session);
+        if (resp.result != 0) return resp;
+        resp = resp.array;
+        for (var i = 0, n = resp.length; i < n; i++) {
+          for (var k = 0, l = resp[i].hardNodeGroups.length; k < l; k++) {
+            if (resp[i].hardNodeGroups[k].uniqueName == '${settings.region}')
+              glbs["domain"] = resp[i].domain;
+          }
+        }
+        glbs["envGroups"] = envGroups;
+        return { result: 0, onAfterReturn: onAfterReturn };
+
+  - install:
+      jps: ${globals.wp_jps}/manifest.yml?_r=${fn.random}
+      envName: ${settings.envName}
+      region: ${settings.region}
+      loggerName: ${settings.envName}
+      displayName: ${settings.displayName}
+      envGroups: ${globals.envGroups}
+      ownerUid: ${settings.ownerUid}
+      settings:
+        ls-addon: false
+        waf: false
+        wp_protect: false
+        le-addon: ${settings.le-addon}
+        cdn-addon: ${settings.cdn-addon}
+        mu-addon: false
+        woocommerce: true
+        DB_USER: ${globals.db_user}
+        DB_PASS: ${globals.db_pass}
+        WP_ADMIN_PASS: ${globals.wp_admin_pass}
+        success_email: false
+  
+  - env.control.ApplyNodeGroupData[cp]:
+      envName: ${settings.envName}
+      data:
+        fixedTopologyLayers: 1
+
+success:
+  email: /success/email/woocommerce.md?_r=${fn.random}
+  text: /success/text/woocommerce.md?_r=${fn.random}
