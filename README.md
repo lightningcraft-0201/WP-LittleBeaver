@@ -4,7 +4,7 @@ Welcome to the Little Beaver Website repository! This project showcases the powe
 
 **Live Site URL**: [Little Beaver Website](https://www.littlebeaver.com)
 
-![Little Beaver Website](https://github.com/DevRex-0201/WP-LittleBeaver/blob/main/addons/2023-10-11_092849.png)
+![Little Beaver Website](https://github.com/DevRex-0201/Project-Images/blob/main/web/WP-LittleBeaver-Preview.jpeg)
 
 ## Project Overview
 
