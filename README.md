@@ -29,7 +29,7 @@ To set up this project locally, follow these steps:
 
 ## Design Preview
 
-![Figma Design](https://github.com/DevRex-0201/WP-LittleBeaver/blob/main/addons/Little%20Beaver.png)
+![Figma Design](https://github.com/DevRex-0201/Project-Images/blob/main/web/WP-LittleBeaver-Design.jpeg)
 
 ## Contributions and Feedback
 
